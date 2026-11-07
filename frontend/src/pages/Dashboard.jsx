@@ -1,0 +1,23 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { Plus, ArrowUpRight, CheckCircle2, Clock3, ListTodo, AlertTriangle, CalendarDays } from "lucide-react";
+import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import api from "../services/api";
+import TaskForm from "../components/TaskForm";
+import { useAuth } from "../context/AuthContext";
+const moneyDate = d => d ? new Date(d).toLocaleDateString(undefined,{month:"short",day:"numeric"}) : "No due date";
+export default function Dashboard(){
+ const [stats,setStats]=useState(null),[show,setShow]=useState(false),[error,setError]=useState("");const {user}=useAuth();
+ const load=()=>api.get("/dashboard/stats").then(r=>setStats(r.data)).catch(e=>setError(e.response?.data?.message||"Could not load dashboard."));
+ useEffect(()=>{load();},[]);
+ const create=async task=>{await api.post("/tasks",task);await load();};
+ if(error)return <div className="error-message">{error}</div>;
+ if(!stats)return <div className="screen-loader">Loading your workspace...</div>;
+ const cards=[["Total tasks",stats.total,ListTodo,"stat-purple"],["Completed",stats.completed,CheckCircle2,"stat-green"],["In progress",stats.inProgress,Clock3,"stat-blue"],["Overdue",stats.overdue,AlertTriangle,"stat-orange"]];
+ return <><div className="page-heading"><div><span className="eyebrow">YOUR WORKSPACE</span><h1>Good to see you, {user?.name?.split(" ")[0]} <span>✦</span></h1><p>Here's what's happening with your productivity today.</p></div><button className="btn btn-primary" onClick={()=>setShow(true)}><Plus size={18}/> New task</button></div>
+ <div className="stats-grid">{cards.map(([label,value,Icon,cls])=><div className="stat-card" key={label}><div className={`stat-icon ${cls}`}><Icon size={19}/></div><span>{label}</span><strong>{value}</strong><small>{label==="Overdue"?"Needs your attention":label==="Completed"?"Great work so far":"Across your workspace"}</small></div>)}</div>
+ <div className="dashboard-grid"><section className="panel chart-panel"><div className="panel-heading"><div><h2>Weekly activity</h2><p>Your completed tasks over the last 7 days</p></div><span className="chart-key"><i/> Completed</span></div><div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><BarChart data={stats.weekly} barSize={25}><CartesianGrid vertical={false} strokeDasharray="3 3" stroke="var(--line)"/><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill:"var(--muted)",fontSize:12}}/><Tooltip cursor={{fill:"var(--soft)"}}/><Bar dataKey="completed" fill="#7065ee" radius={[7,7,2,2]}/></BarChart></ResponsiveContainer></div><div className="completion-row"><div><b>{stats.completionRate}%</b><span> overall completion rate</span></div><div className="progress-track"><i style={{width:`${stats.completionRate}%`}}/></div></div></section>
+ <section className="panel progress-panel"><div className="panel-heading"><div><h2>Task progress</h2><p>A little progress adds up.</p></div></div><div className="ring-wrap"><div className="progress-ring" style={{"--progress":`${stats.completionRate}%`}}><div><b>{stats.completionRate}%</b><small>completed</small></div></div></div><div className="progress-legend"><span><i className="dot-purple"/>Completed <b>{stats.completed}</b></span><span><i className="dot-gray"/>Remaining <b>{stats.total-stats.completed}</b></span></div></section></div>
+ <section className="panel recent-panel"><div className="panel-heading"><div><h2>Recently updated</h2><p>Your latest task activity</p></div><Link to="/tasks" className="text-link">View all <ArrowUpRight size={15}/></Link></div>{stats.recent.length?stats.recent.map(t=><div className="recent-task" key={t._id}><div className={`task-check ${t.status==="Completed"?"done":""}`}>{t.status==="Completed"&&<CheckCircle2 size={15}/>}</div><div className="recent-task-info"><b>{t.title}</b><small>{t.category||"General"} · Due {moneyDate(t.dueDate)}</small></div><span className={`priority priority-${t.priority.toLowerCase()}`}>{t.priority}</span><span className={`status status-${t.status.toLowerCase().replace(" ","-")}`}>{t.status}</span></div>):<div className="empty-state"><CalendarDays size={30}/><b>Your task list is clear</b><p>Create your first task to get started.</p><button className="btn btn-primary" onClick={()=>setShow(true)}>Add a task</button></div>}</section>
+ {show&&<TaskForm onSave={create} onClose={()=>setShow(false)}/>}</>;
+}
